@@ -223,6 +223,7 @@
       entity_iban:    { x: 140, y: 352, size: 10, label: 'IBAN entitate' },
       procent:        { x: 125, y: 332, size: 10, label: 'Procent (%)' },
       acord_x:        { x: 31,  y: 307, size: 10, label: 'Bifă Sunt de acord (X)' },
+      semnatura:      { x: 400, y: 270, width: 120, height: 50, label: 'Semnătură (imagine)' },
     };
 
     let fieldCoords = {};
@@ -464,6 +465,16 @@
           extra = `<div class="flex-1"><label class="text-xs text-gray-400">Spațiere</label>
             <input type="number" step="0.1" value="${f.spacing}" data-ck="${key}" data-cp="spacing"
                    class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>`;
+        if (f.width !== undefined)
+          extra += `<div class="flex-1"><label class="text-xs text-gray-400">W</label>
+            <input type="number" step="1" value="${f.width}" data-ck="${key}" data-cp="width"
+                   class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
+          <div class="flex-1"><label class="text-xs text-gray-400">H</label>
+            <input type="number" step="1" value="${f.height}" data-ck="${key}" data-cp="height"
+                   class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>`;
+        const sizeField = f.size !== undefined ? `<div class="flex-1"><label class="text-xs text-gray-400">Font</label>
+                <input type="number" step="0.5" value="${f.size}" data-ck="${key}" data-cp="size"
+                       class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>` : '';
         el.innerHTML += `
           <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
             <div class="text-xs font-bold text-gray-700 mb-2">${f.label||key}</div>
@@ -474,9 +485,7 @@
               <div class="flex-1"><label class="text-xs text-gray-400">Y</label>
                 <input type="number" step="0.5" value="${f.y}" data-ck="${key}" data-cp="y"
                        class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
-              <div class="flex-1"><label class="text-xs text-gray-400">Font</label>
-                <input type="number" step="0.5" value="${f.size}" data-ck="${key}" data-cp="size"
-                       class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
+              ${sizeField}
               ${extra}
             </div>
           </div>`;
@@ -541,6 +550,27 @@
       draw('entity_iban',    ENTITY.iban);
       draw('procent',        '3.5');
       draw('acord_x',        'X');
+
+      // Signature image
+      const sigUrl = record['Semnătură (link)'];
+      if (sigUrl && fc.semnatura && !sigUrl.includes('error')) {
+        try {
+          const resp = await fetch(APPS_SCRIPT_URL + '?action=getSignature&url=' + encodeURIComponent(sigUrl));
+          const data = await resp.json();
+          if (data.status === 'ok' && data.base64) {
+            const sigBytes = Uint8Array.from(atob(data.base64), c => c.charCodeAt(0));
+            const sigImage = await doc.embedPng(sigBytes);
+            const sigW = fc.semnatura.width || 120;
+            const sigH = fc.semnatura.height || 50;
+            page.drawImage(sigImage, {
+              x: fc.semnatura.x,
+              y: fc.semnatura.y,
+              width: sigW,
+              height: sigH,
+            });
+          }
+        } catch(sigErr) { console.warn('Semnătura nu a putut fi încărcată:', sigErr); }
+      }
 
       return doc;
     }

@@ -55,6 +55,22 @@ function doGet(e) {
     }
   }
 
+  if (action === 'getSignature') {
+    try {
+      const fileUrl = e.parameter.url;
+      if (!fileUrl) return corsResponse({ status: 'error', message: 'Missing url param' });
+      // Extract file ID from Drive URL
+      const match = fileUrl.match(/[-\w]{25,}/);
+      if (!match) return corsResponse({ status: 'error', message: 'Invalid Drive URL' });
+      const file = DriveApp.getFileById(match[0]);
+      const blob = file.getBlob();
+      const b64  = Utilities.base64Encode(blob.getBytes());
+      return corsResponse({ status: 'ok', base64: b64, mimeType: blob.getContentType() });
+    } catch (err) {
+      return corsResponse({ status: 'error', message: err.toString() });
+    }
+  }
+
   return corsResponse({ status: 'ok', message: 'Formular 230 API is running.' });
 }
 
