@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin – Formular 230</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- pdf-lib for PDF auto-fill (future use) -->
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <style>
     body { background:#f0f4ff; }
     @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none} }
@@ -16,11 +15,15 @@
     table { border-collapse:collapse; width:100%; }
     th { position:sticky; top:0; z-index:10; }
     tr:hover td { background:#eff6ff; }
+    .tab-btn { transition: all .2s; }
+    .tab-btn.active { background:#1e40af; color:white; }
+    .tab-btn:not(.active) { background:#e5e7eb; color:#374151; }
+    #pdfCanvas { border: 1px solid #d1d5db; cursor: crosshair; }
   </style>
 </head>
-<body class="min-h-screen p-6">
+<body class="min-h-screen p-4 md:p-6">
 
-  <!-- Password gate -->
+  <!-- Login gate -->
   <div id="loginGate" class="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center">
     <div class="bg-white rounded-2xl shadow-2xl p-8 w-80 fade-in">
       <h2 class="text-xl font-bold text-gray-800 mb-1">🔐 Admin Login</h2>
@@ -39,12 +42,26 @@
   <div id="adminPanel" class="max-w-7xl mx-auto hidden">
 
     <!-- Header -->
-    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+    <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
       <div>
         <h1 class="text-2xl font-bold text-blue-800">📋 Admin – Formular 230</h1>
         <p class="text-sm text-gray-500" id="recordCount">Se încarcă datele...</p>
       </div>
-      <div class="flex flex-wrap gap-2">
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4">
+      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('data')">
+        📊 Date colectate
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('pdf')">
+        📄 Generare PDF
+      </button>
+    </div>
+
+    <!-- ═══════════════════ TAB 1: DATA TABLE ═══════════════════ -->
+    <div id="tabData">
+      <div class="flex flex-wrap gap-2 mb-4">
         <button onclick="loadData()"
                 class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
           🔄 Reîncarcă
@@ -53,86 +70,169 @@
                 class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition">
           📥 Export Excel
         </button>
-        <button onclick="showPdfModal()"
+        <button onclick="generateAllPDFs()"
                 class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-700 transition">
-          📄 Generează PDF
+          📄 Generează toate PDF-urile
         </button>
       </div>
-    </div>
 
-    <!-- Search & filter -->
-    <div class="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-3 items-center">
-      <input id="searchInput" type="text" placeholder="🔍 Caută după nume, CNP, email..."
-             oninput="filterTable()"
-             class="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-48
-                    focus:outline-none focus:ring-2 focus:ring-blue-400" />
-      <select id="countyFilter" onchange="filterTable()"
-              class="border border-gray-300 rounded-lg px-3 py-2 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-400">
-        <option value="">Toate județele</option>
-      </select>
-    </div>
+      <div class="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <input id="searchInput" type="text" placeholder="🔍 Caută după nume, CNP, email..."
+               oninput="filterTable()"
+               class="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-48
+                      focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <select id="countyFilter" onchange="filterTable()"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">Toate județele</option>
+        </select>
+      </div>
 
-    <!-- Table -->
-    <div class="bg-white rounded-xl shadow overflow-auto" style="max-height:60vh">
-      <table id="dataTable">
-        <thead>
-          <tr id="tableHead" class="bg-blue-800 text-white text-xs uppercase tracking-wide"></tr>
-        </thead>
-        <tbody id="tableBody" class="text-sm divide-y divide-gray-100"></tbody>
-      </table>
-      <div id="emptyState" class="hidden text-center py-16 text-gray-400">
-        <div class="text-4xl mb-2">📭</div>
-        <p>Nu există înregistrări</p>
+      <div class="bg-white rounded-xl shadow overflow-auto" style="max-height:55vh">
+        <table id="dataTable">
+          <thead><tr id="tableHead" class="bg-blue-800 text-white text-xs uppercase tracking-wide"></tr></thead>
+          <tbody id="tableBody" class="text-sm divide-y divide-gray-100"></tbody>
+        </table>
+        <div id="emptyState" class="hidden text-center py-16 text-gray-400">
+          <div class="text-4xl mb-2">📭</div><p>Nu există înregistrări</p>
+        </div>
       </div>
     </div>
 
-    <!-- PDF Modal -->
-    <div id="pdfModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md fade-in">
-        <h3 class="text-lg font-bold text-gray-800 mb-4">📄 Generare PDF Formular 230</h3>
-        <p class="text-sm text-gray-600 mb-4">
-          Selectați un rând din tabel și apăsați butonul pentru a auto-completa PDF-ul oficial ANAF.
+    <!-- ═══════════════════ TAB 2: PDF GENERATOR ═══════════════════ -->
+    <div id="tabPdf" class="hidden">
+
+      <!-- Step 1: Upload PDF -->
+      <div class="bg-white rounded-xl shadow p-6 mb-4">
+        <h3 class="text-lg font-bold text-gray-800 mb-3">1️⃣ Încărcați șablonul PDF ANAF 230</h3>
+        <div class="flex flex-wrap gap-4 items-end">
+          <div class="flex-1 min-w-64">
+            <label class="block text-sm font-semibold text-gray-600 mb-1">Fișier PDF oficial ANAF:</label>
+            <input type="file" id="pdfTemplateFile" accept=".pdf"
+                   onchange="onPdfTemplateLoad(event)"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div id="pdfStatus" class="text-sm text-gray-400">Niciun șablon încărcat</div>
+        </div>
+      </div>
+
+      <!-- Step 2: Select record -->
+      <div class="bg-white rounded-xl shadow p-6 mb-4">
+        <h3 class="text-lg font-bold text-gray-800 mb-3">2️⃣ Selectați înregistrarea</h3>
+        <select id="recordSelect" onchange="onRecordSelect()"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">-- Alegeți o persoană --</option>
+        </select>
+        <div id="selectedDataPreview" class="hidden mt-4 bg-gray-50 rounded-lg p-4 text-sm grid grid-cols-2 md:grid-cols-3 gap-2"></div>
+      </div>
+
+      <!-- Step 3: Preview + Download -->
+      <div class="bg-white rounded-xl shadow p-6 mb-4">
+        <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
+          <h3 class="text-lg font-bold text-gray-800">3️⃣ Previzualizare & Descărcare</h3>
+          <div class="flex gap-2 flex-wrap">
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" id="showFieldOverlay" onchange="renderPdfPreview()" checked
+                     class="w-4 h-4 accent-blue-600" />
+              Arată câmpuri
+            </label>
+            <button onclick="previewFilledPDF()"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition">
+              👁️ Previzualizare completată
+            </button>
+            <button onclick="fillAndDownloadPDF()"
+                    class="bg-purple-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 transition">
+              ⬇️ Descarcă PDF completat
+            </button>
+          </div>
+        </div>
+        <div class="text-xs text-gray-400 mb-2">
+          💡 Click pe PDF pentru a vedea coordonatele (x, y) — util la calibrare.
+        </div>
+        <div class="overflow-auto border border-gray-200 rounded-lg bg-gray-100 p-2" style="max-height:70vh">
+          <canvas id="pdfCanvas" onclick="onCanvasClick(event)"></canvas>
+        </div>
+        <div id="coordDisplay" class="mt-2 text-xs text-gray-500 font-mono">
+          Coordonate: click pe PDF
+        </div>
+      </div>
+
+      <!-- Step 4: Coordinate editor -->
+      <div class="bg-white rounded-xl shadow p-6 mb-4">
+        <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
+          <h3 class="text-lg font-bold text-gray-800">4️⃣ Coordonate câmpuri (calibrare)</h3>
+          <div class="flex gap-2">
+            <button onclick="resetCoordinates()"
+                    class="bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-gray-300">
+              🔄 Reset default
+            </button>
+            <button onclick="saveCoordinates()"
+                    class="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-green-700">
+              💾 Salvează
+            </button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 mb-3">
+          Originea (0,0) = colț stânga-jos. A4 = 595 × 842 pt. Ajustați x/y și salvați.
         </p>
-        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700 mb-4">
-          ⚙️ <strong>Funcționalitate în curs de dezvoltare.</strong>
-          Încărcați PDF-ul oficial ANAF (F230) pentru a activa auto-completarea.
-        </div>
-        <label class="block text-sm font-semibold text-gray-700 mb-1">
-          Încărcați șablonul PDF oficial ANAF:
-        </label>
-        <input type="file" id="pdfTemplate" accept=".pdf"
-               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4" />
-        <div class="flex gap-3">
-          <button onclick="generatePDF()"
-                  class="flex-1 bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition">
-            Generează PDF
-          </button>
-          <button onclick="document.getElementById('pdfModal').classList.add('hidden')"
-                  class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition">
-            Anulează
-          </button>
-        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="coordEditor"></div>
       </div>
     </div>
-
   </div>
 
   <script>
-    // ─── CONFIG ──────────────────────────────────────────────────────────────
-    // Replace with your Apps Script URL (same as in index.html)
+    // ═══ CONFIG ═══════════════════════════════════════════════════════════
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxep2HVDS8JAm0T9hPGYf6rfhxYGXeZpFtjjYul--XDQVBKi8QjlMM4aEuJO0-OCWmQ/exec';
+    const ADMIN_PASSWORD  = 'admin230';
 
-    // Simple client-side password (change this!)
-    // For production: use proper auth (Firebase Auth, Netlify Identity, etc.)
-    const ADMIN_PASSWORD = 'admin230'; // ← CHANGE THIS
+    const ENTITY = {
+      name: 'ASOCIATIA PENTRU INOVARE IN BOLI RARE INFLAMATORII, METABOLICE, GENETICE INNOROG',
+      cif:  '43733722',
+      iban: 'RO48INGB0000999912010878'
+    };
 
-    // ─── Auth ─────────────────────────────────────────────────────────────────
+    // Default PDF field coordinates for ANAF 230 page 1
+    // Origin (0,0) = bottom-left corner. A4 ≈ 595 × 842 pt.
+    const DEFAULT_COORDS = {
+      anul_1:         { x: 267, y: 739, size: 12, label: 'Anul cifra 1' },
+      anul_2:         { x: 280, y: 739, size: 12, label: 'Anul cifra 2' },
+      anul_3:         { x: 293, y: 739, size: 12, label: 'Anul cifra 3' },
+      anul_4:         { x: 306, y: 739, size: 12, label: 'Anul cifra 4' },
+
+      nume:           { x: 100, y: 691, size: 9,  label: 'Nume' },
+      initiala:       { x: 340, y: 691, size: 9,  label: 'Inițiala tatălui' },
+      prenume:        { x: 100, y: 666, size: 9,  label: 'Prenume' },
+      email:          { x: 400, y: 666, size: 8,  label: 'E-mail' },
+      strada:         { x: 100, y: 641, size: 9,  label: 'Stradă' },
+      numar:          { x: 332, y: 641, size: 9,  label: 'Număr' },
+      telefon:        { x: 400, y: 641, size: 8,  label: 'Telefon' },
+      bloc:           { x: 75,  y: 616, size: 9,  label: 'Bloc' },
+      scara:          { x: 143, y: 616, size: 9,  label: 'Scară' },
+      etaj:           { x: 200, y: 616, size: 9,  label: 'Etaj' },
+      ap:             { x: 240, y: 616, size: 9,  label: 'Ap.' },
+      judet:          { x: 290, y: 616, size: 8,  label: 'Județ/Sector' },
+      localitate:     { x: 100, y: 591, size: 9,  label: 'Localitate' },
+
+      cnp_start:      { x: 396, y: 700, size: 9.5, spacing: 13.1, label: 'CNP (start + spațiere)' },
+
+      sustinere_x:    { x: 307, y: 478, size: 10, label: 'Bifă Susținere (X)' },
+      optiune_2ani_x: { x: 382, y: 452, size: 10, label: 'Bifă Opțiune 2 ani (X)' },
+      entity_cif:     { x: 320, y: 432, size: 9,  label: 'CIF entitate' },
+      entity_name:    { x: 275, y: 412, size: 6.5, label: 'Denumire entitate' },
+      entity_iban:    { x: 143, y: 392, size: 9,  label: 'IBAN entitate' },
+      procent:        { x: 195, y: 372, size: 9,  label: 'Procent (%)' },
+      acord_x:        { x: 66,  y: 339, size: 10, label: 'Bifă Sunt de acord (X)' },
+    };
+
+    let fieldCoords = {};
+
+    // ═══ AUTH ═════════════════════════════════════════════════════════════
     function checkPass() {
-      const val = document.getElementById('passInput').value;
-      if (val === ADMIN_PASSWORD) {
+      if (document.getElementById('passInput').value === ADMIN_PASSWORD) {
         document.getElementById('loginGate').classList.add('hidden');
         document.getElementById('adminPanel').classList.remove('hidden');
+        loadCoordinates();
         loadData();
       } else {
         document.getElementById('loginErr').classList.remove('hidden');
@@ -142,49 +242,41 @@
       if (e.key === 'Enter') checkPass();
     });
 
-    // ─── Data ─────────────────────────────────────────────────────────────────
-    let allRows    = [];
-    let allHeaders = [];
-    let selectedRow = null;
+    // ═══ TABS ════════════════════════════════════════════════════════════
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (tab === 'data' && i === 0) || (tab === 'pdf' && i === 1));
+      });
+      document.getElementById('tabData').classList.toggle('hidden', tab !== 'data');
+      document.getElementById('tabPdf').classList.toggle('hidden', tab !== 'pdf');
+      if (tab === 'pdf') { populateRecordSelect(); renderCoordEditor(); }
+    }
+
+    // ═══ DATA TABLE ══════════════════════════════════════════════════════
+    let allRows = [], allHeaders = [];
 
     async function loadData() {
       document.getElementById('recordCount').textContent = 'Se încarcă...';
       try {
-        if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-          // Demo data for development
-          allHeaders = ['Timestamp','Nume','Prenume','Inițiala tatălui','CNP','Email','Telefon',
-                        'Strada','Număr','Bloc','Scară','Etaj','Apartament','Județ/Sector','Localitate',
-                        'Entitate beneficiară','CIF entitate','Semnătură'];
-          allRows = [
-            ['2026-04-05T10:00:00Z','Popescu','Ion','V.','1234567890123',
-             'ion@email.ro','0712345678','Florilor','10','A1','1','3','15','Ilfov','București',
-             'Asociația Demo','12345678','(semnătură)']
-          ];
-        } else {
-          const resp = await fetch(APPS_SCRIPT_URL + '?action=getAll');
-          const data = await resp.json();
-          allHeaders = data.headers;
-          allRows    = data.rows;
-        }
+        const resp = await fetch(APPS_SCRIPT_URL + '?action=getAll');
+        const data = await resp.json();
+        allHeaders = data.headers || [];
+        allRows    = data.rows || [];
         renderTable(allHeaders, allRows);
         populateCountyFilter();
       } catch (err) {
         console.error(err);
-        document.getElementById('recordCount').textContent = '❌ Eroare la încărcare';
+        document.getElementById('recordCount').textContent = '❌ Eroare: ' + err.message;
       }
     }
 
     function renderTable(headers, rows) {
-      // Head
       const head = document.getElementById('tableHead');
       head.innerHTML = '<th class="px-3 py-3 text-left">#</th>' +
         headers.map(h => `<th class="px-3 py-3 text-left whitespace-nowrap">${h}</th>`).join('') +
-        '<th class="px-3 py-3">Acțiuni</th>';
-
-      // Body
+        '<th class="px-3 py-3">PDF</th>';
       const body = document.getElementById('tableBody');
       body.innerHTML = '';
-
       if (!rows.length) {
         document.getElementById('emptyState').classList.remove('hidden');
         document.getElementById('recordCount').textContent = '0 înregistrări';
@@ -192,143 +284,324 @@
       }
       document.getElementById('emptyState').classList.add('hidden');
       document.getElementById('recordCount').textContent = `${rows.length} înregistrări`;
-
       rows.forEach((row, i) => {
         const tr = document.createElement('tr');
         tr.className = 'cursor-pointer transition';
-        tr.onclick = () => selectRow(tr, row);
         tr.innerHTML = `<td class="px-3 py-2 text-gray-400 font-mono text-xs">${i+1}</td>` +
-          row.map(cell => {
-            const isImg = typeof cell === 'string' && cell.startsWith('http');
-            return isImg
-              ? `<td class="px-3 py-2"><a href="${cell}" target="_blank" class="text-blue-500 underline text-xs">🖊️ Vezi</a></td>`
-              : `<td class="px-3 py-2 whitespace-nowrap max-w-xs truncate" title="${cell}">${cell}</td>`;
+          row.map(c => {
+            const s = String(c ?? '');
+            return s.startsWith('http')
+              ? `<td class="px-3 py-2"><a href="${s}" target="_blank" class="text-blue-500 underline text-xs">🖊️ Vezi</a></td>`
+              : `<td class="px-3 py-2 whitespace-nowrap max-w-xs truncate" title="${s}">${s}</td>`;
           }).join('') +
           `<td class="px-3 py-2 text-center">
-            <button onclick="event.stopPropagation();selectAndPDF(${i})"
-                    class="text-purple-600 hover:text-purple-800 text-xs font-semibold">📄 PDF</button>
+            <button onclick="event.stopPropagation();quickPDF(${i})"
+                    class="text-purple-600 hover:text-purple-800 text-xs font-semibold" title="Descarcă PDF">📄</button>
           </td>`;
         body.appendChild(tr);
       });
     }
 
-    function selectRow(tr, row) {
-      document.querySelectorAll('#tableBody tr').forEach(r => r.classList.remove('bg-blue-50','ring-2','ring-blue-300'));
-      tr.classList.add('bg-blue-50');
-      selectedRow = row;
-    }
-
-    function selectAndPDF(i) {
-      selectedRow = allRows[i];
-      showPdfModal();
-    }
-
-    // ─── Filter ───────────────────────────────────────────────────────────────
     function filterTable() {
-      const q      = document.getElementById('searchInput').value.toLowerCase();
+      const q = document.getElementById('searchInput').value.toLowerCase();
       const county = document.getElementById('countyFilter').value.toLowerCase();
-      const countyIdx = allHeaders.indexOf('Județ/Sector');
-
-      const filtered = allRows.filter(row => {
-        const matchQ      = !q || row.some(c => String(c).toLowerCase().includes(q));
-        const matchCounty = !county || String(row[countyIdx] || '').toLowerCase() === county;
-        return matchQ && matchCounty;
+      const cIdx = allHeaders.indexOf('Județ/Sector');
+      const filtered = allRows.filter(r => {
+        return (!q || r.some(c => String(c).toLowerCase().includes(q))) &&
+               (!county || String(r[cIdx] || '').toLowerCase() === county);
       });
       renderTable(allHeaders, filtered);
     }
 
     function populateCountyFilter() {
-      const idx    = allHeaders.indexOf('Județ/Sector');
-      const sel    = document.getElementById('countyFilter');
-      const unique = [...new Set(allRows.map(r => r[idx]).filter(Boolean))].sort();
+      const idx = allHeaders.indexOf('Județ/Sector');
+      if (idx < 0) return;
+      const sel = document.getElementById('countyFilter');
+      const vals = [...new Set(allRows.map(r => r[idx]).filter(Boolean))].sort();
       sel.innerHTML = '<option value="">Toate județele</option>' +
-        unique.map(c => `<option value="${c.toLowerCase()}">${c}</option>`).join('');
+        vals.map(c => `<option value="${c.toLowerCase()}">${c}</option>`).join('');
     }
 
-    // ─── Excel Export ─────────────────────────────────────────────────────────
     function exportExcel() {
-      const wsData = [allHeaders, ...allRows];
-      const ws     = XLSX.utils.aoa_to_sheet(wsData);
-      const wb     = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([allHeaders, ...allRows]);
+      const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Formular230');
-
-      // Style header row
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let C = range.s.c; C <= range.e.c; C++) {
-        const addr = XLSX.utils.encode_cell({ r: 0, c: C });
-        if (!ws[addr]) continue;
-        ws[addr].s = { font: { bold: true, color: { rgb: 'FFFFFF' } },
-                       fill: { fgColor: { rgb: '003DA5' } } };
-      }
-
-      const date = new Date().toISOString().slice(0,10);
-      XLSX.writeFile(wb, `Formular230_${date}.xlsx`);
+      XLSX.writeFile(wb, `Formular230_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
-    // ─── PDF Modal ────────────────────────────────────────────────────────────
-    function showPdfModal() {
-      document.getElementById('pdfModal').classList.remove('hidden');
+    // ═══ PDF TEMPLATE ════════════════════════════════════════════════════
+    let pdfTemplateBytes = null;
+    let pdfPageDims = { width: 595.28, height: 841.89 };
+    let pdfRenderScale = 1;
+
+    async function onPdfTemplateLoad(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      pdfTemplateBytes = await file.arrayBuffer();
+      document.getElementById('pdfStatus').innerHTML =
+        '✅ <span class="text-green-600 font-semibold">' + file.name + '</span>';
+      const pdfDoc = await PDFLib.PDFDocument.load(pdfTemplateBytes);
+      const pg = pdfDoc.getPages()[0];
+      pdfPageDims = { width: pg.getWidth(), height: pg.getHeight() };
+      renderPdfPreview();
     }
 
-    // ─── PDF Generation (pdf-lib) ─────────────────────────────────────────────
-    async function generatePDF() {
-      if (!selectedRow) {
-        alert('Selectați mai întâi un rând din tabel.');
-        return;
+    // ═══ PDF PREVIEW (PDF.js) ════════════════════════════════════════════
+    async function renderPdfPreview(filledBytes) {
+      const bytes = filledBytes || pdfTemplateBytes;
+      if (!bytes) return;
+      const canvas = document.getElementById('pdfCanvas');
+      const ctx = canvas.getContext('2d');
+      const task = pdfjsLib.getDocument({ data: bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes });
+      const pdf = await task.promise;
+      const page = await pdf.getPage(1);
+      pdfRenderScale = Math.min(750 / pdfPageDims.width, 1.5);
+      const vp = page.getViewport({ scale: pdfRenderScale });
+      canvas.width = vp.width;
+      canvas.height = vp.height;
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      if (!filledBytes && document.getElementById('showFieldOverlay').checked) drawFieldOverlay(ctx);
+    }
+
+    function drawFieldOverlay(ctx) {
+      ctx.save();
+      Object.entries(fieldCoords).forEach(([key, f]) => {
+        if (key === 'cnp_start') return;
+        const cx = f.x * pdfRenderScale;
+        const cy = (pdfPageDims.height - f.y) * pdfRenderScale;
+        ctx.fillStyle = 'rgba(255,0,0,0.12)';
+        ctx.fillRect(cx - 2, cy - 10 * pdfRenderScale, 80 * pdfRenderScale, 12 * pdfRenderScale);
+        ctx.fillStyle = '#e11d48';
+        ctx.font = `${Math.max(8, 9 * pdfRenderScale)}px sans-serif`;
+        ctx.fillText(f.label || key, cx, cy);
+      });
+      const cnp = fieldCoords.cnp_start;
+      if (cnp) {
+        for (let i = 0; i < 13; i++) {
+          const cx = (cnp.x + i * cnp.spacing) * pdfRenderScale;
+          const cy = (pdfPageDims.height - cnp.y) * pdfRenderScale;
+          ctx.fillStyle = 'rgba(0,100,255,0.15)';
+          ctx.fillRect(cx - 1, cy - 10 * pdfRenderScale, 11 * pdfRenderScale, 12 * pdfRenderScale);
+        }
       }
-      const fileInput = document.getElementById('pdfTemplate');
-      if (!fileInput.files.length) {
-        alert('Vă rugăm să încărcați șablonul PDF oficial ANAF.');
-        return;
-      }
+      ctx.restore();
+    }
 
-      try {
-        const { PDFDocument, rgb, StandardFonts } = PDFLib;
-        const fileBytes = await fileInput.files[0].arrayBuffer();
-        const pdfDoc    = await PDFDocument.load(fileBytes);
-        const font      = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const pages     = pdfDoc.getPages();
-        const page      = pages[0];
+    function onCanvasClick(event) {
+      const c = document.getElementById('pdfCanvas').getBoundingClientRect();
+      const px = ((event.clientX - c.left) / pdfRenderScale).toFixed(1);
+      const py = (pdfPageDims.height - (event.clientY - c.top) / pdfRenderScale).toFixed(1);
+      document.getElementById('coordDisplay').textContent = `PDF coords: x=${px}  y=${py}`;
+    }
 
-        // Map row data to field positions
-        // NOTE: These coordinates need calibration based on the actual ANAF PDF layout.
-        // Use the coordinate helper below to find exact positions.
-        const rowObj = {};
-        allHeaders.forEach((h, i) => { rowObj[h] = selectedRow[i] || ''; });
+    // ═══ RECORD SELECTOR ═════════════════════════════════════════════════
+    function populateRecordSelect() {
+      const sel = document.getElementById('recordSelect');
+      sel.innerHTML = '<option value="">-- Alegeți o persoană --</option>';
+      const ni = allHeaders.indexOf('Nume'), pi = allHeaders.indexOf('Prenume'), ci = allHeaders.indexOf('CNP');
+      allRows.forEach((r, i) => {
+        const n = `${r[ni]||''} ${r[pi]||''}`.trim();
+        sel.innerHTML += `<option value="${i}">${i+1}. ${n} – CNP: ${r[ci]||''}</option>`;
+      });
+    }
 
-        const fields = [
-          { text: rowObj['Nume'] + ' ' + rowObj['Prenume'], x: 150, y: 650, size: 10 },
-          { text: rowObj['CNP'],    x: 400, y: 650, size: 10 },
-          { text: rowObj['Strada'], x: 150, y: 620, size: 10 },
-          { text: rowObj['Număr'],  x: 350, y: 620, size: 10 },
-          { text: rowObj['Bloc'],   x: 410, y: 620, size: 10 },
-          { text: rowObj['Localitate'] + ', ' + rowObj['Județ/Sector'], x: 150, y: 590, size: 10 },
-        ];
+    function onRecordSelect() {
+      const idx = document.getElementById('recordSelect').value;
+      const prev = document.getElementById('selectedDataPreview');
+      if (idx === '') { prev.classList.add('hidden'); return; }
+      const row = allRows[parseInt(idx)];
+      prev.classList.remove('hidden');
+      prev.innerHTML = '';
+      allHeaders.forEach((h, i) => {
+        if (h.includes('Semnătură')) return;
+        prev.innerHTML += `<div><span class="font-semibold text-gray-600">${h}:</span> ${row[i]||'-'}</div>`;
+      });
+    }
 
-        fields.forEach(f => {
-          page.drawText(f.text, {
-            x: f.x, y: f.y,
-            size: f.size || 10,
-            font,
-            color: rgb(0, 0, 0)
+    function getSelectedRecord() {
+      const idx = document.getElementById('recordSelect').value;
+      if (idx === '') return null;
+      const row = allRows[parseInt(idx)];
+      const obj = {};
+      allHeaders.forEach((h, i) => { obj[h] = row[i] || ''; });
+      return obj;
+    }
+
+    // ═══ COORDINATE EDITOR ═══════════════════════════════════════════════
+    function loadCoordinates() {
+      const s = localStorage.getItem('f230_coords');
+      fieldCoords = s ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT_COORDS));
+    }
+
+    function readCoordsFromUI() {
+      document.querySelectorAll('[data-ck]').forEach(inp => {
+        const k = inp.dataset.ck, p = inp.dataset.cp, v = parseFloat(inp.value);
+        if (!isNaN(v) && fieldCoords[k]) fieldCoords[k][p] = v;
+      });
+    }
+
+    function saveCoordinates() {
+      readCoordsFromUI();
+      localStorage.setItem('f230_coords', JSON.stringify(fieldCoords));
+      renderPdfPreview();
+      alert('✅ Coordonate salvate!');
+    }
+
+    function resetCoordinates() {
+      if (!confirm('Resetați coordonatele la valorile implicite?')) return;
+      fieldCoords = JSON.parse(JSON.stringify(DEFAULT_COORDS));
+      localStorage.removeItem('f230_coords');
+      renderCoordEditor();
+      renderPdfPreview();
+    }
+
+    function renderCoordEditor() {
+      const el = document.getElementById('coordEditor');
+      el.innerHTML = '';
+      Object.entries(fieldCoords).forEach(([key, f]) => {
+        let extra = '';
+        if (f.spacing !== undefined)
+          extra = `<div class="flex-1"><label class="text-xs text-gray-400">Spațiere</label>
+            <input type="number" step="0.1" value="${f.spacing}" data-ck="${key}" data-cp="spacing"
+                   class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>`;
+        el.innerHTML += `
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="text-xs font-bold text-gray-700 mb-2">${f.label||key}</div>
+            <div class="flex gap-2">
+              <div class="flex-1"><label class="text-xs text-gray-400">X</label>
+                <input type="number" step="0.5" value="${f.x}" data-ck="${key}" data-cp="x"
+                       class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
+              <div class="flex-1"><label class="text-xs text-gray-400">Y</label>
+                <input type="number" step="0.5" value="${f.y}" data-ck="${key}" data-cp="y"
+                       class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
+              <div class="flex-1"><label class="text-xs text-gray-400">Font</label>
+                <input type="number" step="0.5" value="${f.size}" data-ck="${key}" data-cp="size"
+                       class="w-full border border-gray-300 rounded px-2 py-1 text-xs" /></div>
+              ${extra}
+            </div>
+          </div>`;
+      });
+    }
+
+    // ═══ PDF GENERATION ══════════════════════════════════════════════════
+    async function buildFilledPDF(record) {
+      if (!pdfTemplateBytes) { alert('Încărcați mai întâi șablonul PDF ANAF!'); return null; }
+      readCoordsFromUI();
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const doc  = await PDFDocument.load(pdfTemplateBytes.slice(0));
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const page = doc.getPages()[0];
+
+      // Keep only page 1
+      for (let i = doc.getPageCount() - 1; i > 0; i--) doc.removePage(i);
+
+      const fc = fieldCoords;
+      const draw = (key, text) => {
+        if (!text || !fc[key]) return;
+        page.drawText(String(text), { x:fc[key].x, y:fc[key].y, size:fc[key].size||9, font, color:rgb(0,0,0) });
+      };
+
+      // Anul = 2025
+      '2025'.split('').forEach((ch, i) => draw(`anul_${i+1}`, ch));
+
+      // Section I – date personale
+      draw('nume',       record['Nume']);
+      draw('initiala',   record['Inițiala tatălui']);
+      draw('prenume',    record['Prenume']);
+      draw('email',      record['Email']);
+      draw('strada',     record['Strada']);
+      draw('numar',      record['Număr']);
+      draw('telefon',    record['Telefon']);
+      draw('bloc',       record['Bloc']);
+      draw('scara',      record['Scară']);
+      draw('etaj',       record['Etaj']);
+      draw('ap',         record['Apartament']);
+      draw('judet',      record['Județ/Sector']);
+      draw('localitate', record['Localitate']);
+
+      // CNP – 13 digits individually
+      const cnp = String(record['CNP'] || '');
+      if (cnp && fc.cnp_start) {
+        for (let i = 0; i < Math.min(cnp.length, 13); i++) {
+          page.drawText(cnp[i], {
+            x: fc.cnp_start.x + i * fc.cnp_start.spacing,
+            y: fc.cnp_start.y,
+            size: fc.cnp_start.size || 9.5,
+            font, color: rgb(0,0,0)
           });
-        });
-
-        const pdfBytes = await pdfDoc.save();
-        const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url      = URL.createObjectURL(blob);
-        const a        = document.createElement('a');
-        a.href         = url;
-        a.download     = `F230_${rowObj['CNP']}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        document.getElementById('pdfModal').classList.add('hidden');
-      } catch (err) {
-        console.error(err);
-        alert('Eroare la generarea PDF: ' + err.message);
+        }
       }
+
+      // Section II – entity (pre-filled)
+      draw('sustinere_x',    'X');
+      draw('optiune_2ani_x', 'X');
+      draw('entity_cif',     ENTITY.cif);
+      draw('entity_name',    ENTITY.name);
+      draw('entity_iban',    ENTITY.iban);
+      draw('procent',        '3.5');
+      draw('acord_x',        'X');
+
+      return doc;
     }
+
+    async function fillAndDownloadPDF() {
+      const rec = getSelectedRecord();
+      if (!rec) { alert('Selectați o înregistrare!'); return; }
+      const doc = await buildFilledPDF(rec);
+      if (!doc) return;
+      const bytes = await doc.save();
+      downloadBlob(bytes, `F230_${rec['CNP']||'export'}.pdf`);
+    }
+
+    async function previewFilledPDF() {
+      const rec = getSelectedRecord();
+      if (!rec) { alert('Selectați o înregistrare!'); return; }
+      const doc = await buildFilledPDF(rec);
+      if (!doc) return;
+      const bytes = await doc.save();
+      renderPdfPreview(bytes);
+    }
+
+    async function quickPDF(i) {
+      if (!pdfTemplateBytes) {
+        alert('Mergeți la tab-ul "Generare PDF" și încărcați șablonul PDF ANAF.');
+        return;
+      }
+      const rec = {};
+      allHeaders.forEach((h, j) => { rec[h] = allRows[i][j] || ''; });
+      const doc = await buildFilledPDF(rec);
+      if (!doc) return;
+      downloadBlob(await doc.save(), `F230_${rec['CNP']||i+1}.pdf`);
+    }
+
+    async function generateAllPDFs() {
+      if (!pdfTemplateBytes) { alert('Încărcați mai întâi șablonul PDF ANAF (tab Generare PDF).'); return; }
+      if (!allRows.length) { alert('Nu există înregistrări.'); return; }
+      if (!confirm(`Generați ${allRows.length} PDF-uri?`)) return;
+      for (let i = 0; i < allRows.length; i++) {
+        const rec = {};
+        allHeaders.forEach((h,j) => { rec[h] = allRows[i][j] || ''; });
+        const doc = await buildFilledPDF(rec);
+        if (doc) {
+          downloadBlob(await doc.save(), `F230_${rec['CNP']||i+1}.pdf`);
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+      alert('✅ Toate PDF-urile au fost generate!');
+    }
+
+    // ═══ HELPERS ═════════════════════════════════════════════════════════
+    function downloadBlob(bytes, name) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type:'application/pdf' }));
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // ═══ INIT ════════════════════════════════════════════════════════════
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   </script>
 </body>
 </html>
