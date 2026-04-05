@@ -352,7 +352,7 @@
       if (!bytes) return;
       const canvas = document.getElementById('pdfCanvas');
       const ctx = canvas.getContext('2d');
-      const task = pdfjsLib.getDocument({ data: bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes });
+      const task = pdfjsLib.getDocument({ data: new Uint8Array(bytes) });
       const pdf = await task.promise;
       const page = await pdf.getPage(1);
       pdfRenderScale = Math.min(750 / pdfPageDims.width, 1.5);
