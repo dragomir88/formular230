@@ -16,7 +16,7 @@
  */
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
-const SPREADSHEET_ID = 'YOUR_GOOGLE_SHEET_ID_HERE'; // ← Replace this
+const SPREADSHEET_ID = '1Ayz5XznFmYxzQsak04tLalmSV9X5LAu8ayhZqLX2bns';
 const SHEET_NAME     = 'Formular230';
 
 // Column headers (order matters – matches payload keys)
@@ -36,8 +36,25 @@ function corsResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Handle preflight OPTIONS (GitHub Pages → Apps Script CORS)
+// Handle GET requests – used by admin page to fetch all rows
 function doGet(e) {
+  const action = e && e.parameter && e.parameter.action;
+
+  if (action === 'getAll') {
+    try {
+      const sheet = getOrCreateSheet();
+      const data  = sheet.getDataRange().getValues();
+      if (data.length < 2) {
+        return corsResponse({ status: 'ok', headers: HEADERS, rows: [] });
+      }
+      const headers = data[0];
+      const rows    = data.slice(1);
+      return corsResponse({ status: 'ok', headers, rows });
+    } catch (err) {
+      return corsResponse({ status: 'error', message: err.toString() });
+    }
+  }
+
   return corsResponse({ status: 'ok', message: 'Formular 230 API is running.' });
 }
 
