@@ -488,7 +488,8 @@
       if (!pdfTemplateBytes) { alert('Încărcați mai întâi șablonul PDF ANAF!'); return null; }
       readCoordsFromUI();
       const { PDFDocument, rgb, StandardFonts } = PDFLib;
-      const doc  = await PDFDocument.load(pdfTemplateBytes.slice(0));
+      const doc  = await PDFDocument.load(pdfTemplateBytes.slice(0), { ignoreEncryption: true });
+      try { doc.getForm().flatten(); } catch(e) {}
       const font = await doc.embedFont(StandardFonts.Helvetica);
       const page = doc.getPages()[0];
 
@@ -545,21 +546,25 @@
     }
 
     async function fillAndDownloadPDF() {
-      const rec = getSelectedRecord();
-      if (!rec) { alert('Selectați o înregistrare!'); return; }
-      const doc = await buildFilledPDF(rec);
-      if (!doc) return;
-      const bytes = await doc.save();
-      downloadBlob(bytes, `F230_${rec['CNP']||'export'}.pdf`);
+      try {
+        const rec = getSelectedRecord();
+        if (!rec) { alert('Selectați o înregistrare!'); return; }
+        const doc = await buildFilledPDF(rec);
+        if (!doc) return;
+        const bytes = await doc.save();
+        downloadBlob(bytes, `F230_${rec['CNP']||'export'}.pdf`);
+      } catch(err) { alert('❌ Eroare PDF: ' + err.message); }
     }
 
     async function previewFilledPDF() {
-      const rec = getSelectedRecord();
-      if (!rec) { alert('Selectați o înregistrare!'); return; }
-      const doc = await buildFilledPDF(rec);
-      if (!doc) return;
-      const bytes = await doc.save();
-      renderPdfPreview(bytes);
+      try {
+        const rec = getSelectedRecord();
+        if (!rec) { alert('Selectați o înregistrare!'); return; }
+        const doc = await buildFilledPDF(rec);
+        if (!doc) return;
+        const bytes = await doc.save();
+        renderPdfPreview(bytes);
+      } catch(err) { alert('❌ Eroare PDF: ' + err.message); }
     }
 
     async function quickPDF(i) {
