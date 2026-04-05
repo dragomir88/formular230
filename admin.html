@@ -337,10 +337,10 @@
     async function onPdfTemplateLoad(event) {
       const file = event.target.files[0];
       if (!file) return;
-      pdfTemplateBytes = await file.arrayBuffer();
+      pdfTemplateBytes = new Uint8Array(await file.arrayBuffer());
       document.getElementById('pdfStatus').innerHTML =
         '✅ <span class="text-green-600 font-semibold">' + file.name + '</span>';
-      const pdfDoc = await PDFLib.PDFDocument.load(pdfTemplateBytes);
+      const pdfDoc = await PDFLib.PDFDocument.load(pdfTemplateBytes.slice(0), { ignoreEncryption: true });
       const pg = pdfDoc.getPages()[0];
       pdfPageDims = { width: pg.getWidth(), height: pg.getHeight() };
       renderPdfPreview();
@@ -488,7 +488,7 @@
       if (!pdfTemplateBytes) { alert('Încărcați mai întâi șablonul PDF ANAF!'); return null; }
       readCoordsFromUI();
       const { PDFDocument, rgb, StandardFonts } = PDFLib;
-      const doc  = await PDFDocument.load(pdfTemplateBytes.slice(0), { ignoreEncryption: true });
+      const doc  = await PDFDocument.load(new Uint8Array(pdfTemplateBytes), { ignoreEncryption: true });
       try { doc.getForm().flatten(); } catch(e) {}
       const font = await doc.embedFont(StandardFonts.Helvetica);
       const page = doc.getPages()[0];
