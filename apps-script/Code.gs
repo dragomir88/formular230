@@ -48,19 +48,38 @@ function doGet(e) {
       if (data.length < 2) {
         return corsResponse({ status: 'ok', headers: HEADERS, rows: [] });
       }
-      const headers = data[0];
-      const rows    = data.slice(1);
+      // Return only the visible columns (exclude hidden base64 column)
+      const numCols = HEADERS.length;
+      const headers = data[0].slice(0, numCols);
+      const rows    = data.slice(1).map(r => r.slice(0, numCols));
       return corsResponse({ status: 'ok', headers, rows });
     } catch (err) {
       return corsResponse({ status: 'error', message: err.toString() });
     }
   }
 
+  // Return signature base64 stored directly in the sheet (reliable, no Drive roundtrip)
+  if (action === 'getSignatureB64') {
+    try {
+      const row = parseInt(e.parameter.row);
+      if (isNaN(row) || row < 0) return corsResponse({ status: 'error', message: 'Invalid row parameter' });
+      const sheet = getOrCreateSheet();
+      const sheetRow = row + 2; // +1 for header row, +1 for 1-based index
+      if (sheetRow > sheet.getLastRow()) return corsResponse({ status: 'error', message: 'Row not found' });
+      const sigB64Col = HEADERS.length + 1; // hidden column after visible headers
+      const b64 = sheet.getRange(sheetRow, sigB64Col).getValue();
+      if (!b64) return corsResponse({ status: 'error', message: 'No signature data for this row' });
+      return corsResponse({ status: 'ok', base64: b64, mimeType: 'image/png' });
+    } catch (err) {
+      return corsResponse({ status: 'error', message: err.toString() });
+    }
+  }
+
+  // Legacy fallback: fetch signature from Drive by URL
   if (action === 'getSignature') {
     try {
       const fileUrl = e.parameter.url;
       if (!fileUrl) return corsResponse({ status: 'error', message: 'Missing url param' });
-      // Extract file ID from Drive URL
       const match = fileUrl.match(/[-\w]{25,}/);
       if (!match) return corsResponse({ status: 'error', message: 'Invalid Drive URL' });
       const file = DriveApp.getFileById(match[0]);
@@ -87,7 +106,13 @@ function doPost(e) {
       signatureUrl = saveSignatureImage(payload, sheet.getLastRow());
     }
 
-    // Append row
+    // Extract raw base64 from signature data URI (stored in hidden column for PDF generation)
+    let signatureBase64 = '';
+    if (payload.signature && payload.signature.startsWith('data:image')) {
+      signatureBase64 = payload.signature.replace(/^data:image\/\w+;base64,/, '');
+    }
+
+    // Append row (visible columns + hidden base64 column)
     sheet.appendRow([
       payload.timestamp     || new Date().toISOString(),
       payload.lastName      || '',
@@ -108,7 +133,8 @@ function doPost(e) {
       payload.entityCIF     || '',
       payload.entityIBAN    || '',
       payload.optiune2ani ? 'Da' : 'Nu',
-      signatureUrl
+      signatureUrl,
+      signatureBase64       // hidden column HEADERS.length + 1
     ]);
 
     // Auto-resize columns on first submission

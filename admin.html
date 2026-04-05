@@ -183,7 +183,7 @@
 
   <script>
     // ═══ CONFIG ═══════════════════════════════════════════════════════════
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAOIpQa9FM6T71W0rpTlHAt6yoEi1Lmhzt12F30H9POL-9yft4lJYvx5dBYrBwZpgm/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOh1eT-AryOjsX1uwYuBaq3XkIs8ayzaC-Uhsj5CFshXxRi1JdzCnJN4jp6QV0zvfp/exec';
     const ADMIN_PASSWORD  = 'admin230';
 
     const ENTITY = {
@@ -495,7 +495,7 @@
     }
 
     // ═══ PDF GENERATION ══════════════════════════════════════════════════
-    async function buildFilledPDF(record) {
+    async function buildFilledPDF(record, rowIndex) {
       if (!pdfTemplateBytes) { alert('Încărcați mai întâi șablonul PDF ANAF!'); return null; }
       readCoordsFromUI();
       const { PDFDocument, rgb, StandardFonts } = PDFLib;
@@ -554,22 +554,63 @@
       draw('procent',        '3.5');
       draw('acord_x',        'X');
 
-      // Signature image
-      const sigKey = Object.keys(record).find(k => k.toLowerCase().includes('semn'));
-      const sigUrl = sigKey ? record[sigKey] : '';
-      console.log('Signature key:', sigKey, 'URL:', sigUrl);
-      if (sigUrl && fc.semnatura && sigUrl.startsWith('http')) {
-        try {
-          const resp = await fetch(APPS_SCRIPT_URL + '?action=getSignature&url=' + encodeURIComponent(sigUrl));
-          const text = await resp.text();
-          let data;
-          try { data = JSON.parse(text); } catch(e) {
-            console.error('Răspuns non-JSON:', text.substring(0, 200));
-            throw new Error('Răspuns invalid de la server');
+      // Signature image – try base64 from sheet first, fallback to Drive proxy
+      if (fc.semnatura) {
+        let sigBase64 = null;
+
+        // Method 1: Fetch base64 directly from the hidden sheet column (reliable)
+        if (rowIndex !== undefined && rowIndex >= 0) {
+          try {
+            const resp = await fetch(APPS_SCRIPT_URL + '?action=getSignatureB64&row=' + rowIndex);
+            const data = await resp.json();
+            if (data.status === 'ok' && data.base64) {
+              sigBase64 = data.base64;
+              console.log('Signature loaded via base64 column (row ' + rowIndex + ')');
+            } else {
+              console.warn('getSignatureB64 response:', data);
+            }
+          } catch (err) {
+            console.warn('getSignatureB64 failed:', err);
           }
-          if (data.status === 'ok' && data.base64) {
-            const sigBytes = Uint8Array.from(atob(data.base64), c => c.charCodeAt(0));
-            const sigImage = await doc.embedPng(sigBytes);
+        }
+
+        // Method 2: Fallback – fetch from Drive via proxy (for old records without base64 column)
+        if (!sigBase64) {
+          const sigKey = Object.keys(record).find(k => k.toLowerCase().includes('semn'));
+          const sigUrl = sigKey ? record[sigKey] : '';
+          if (sigUrl && String(sigUrl).startsWith('http')) {
+            try {
+              const resp = await fetch(APPS_SCRIPT_URL + '?action=getSignature&url=' + encodeURIComponent(sigUrl));
+              const text = await resp.text();
+              let data;
+              try { data = JSON.parse(text); } catch(e) {
+                console.error('Răspuns non-JSON:', text.substring(0, 200));
+                throw new Error('Răspuns invalid de la server');
+              }
+              if (data.status === 'ok' && data.base64) {
+                sigBase64 = data.base64;
+                console.log('Signature loaded via Drive proxy');
+              } else {
+                console.warn('getSignature response:', data);
+              }
+            } catch (err) {
+              console.warn('Drive proxy fallback failed:', err);
+            }
+          }
+        }
+
+        // Embed signature in PDF
+        if (sigBase64) {
+          try {
+            const sigBytes = Uint8Array.from(atob(sigBase64), c => c.charCodeAt(0));
+            let sigImage;
+            try {
+              sigImage = await doc.embedPng(sigBytes);
+            } catch (pngErr) {
+              // Might be JPEG instead of PNG
+              console.warn('embedPng failed, trying embedJpg:', pngErr);
+              sigImage = await doc.embedJpg(sigBytes);
+            }
             const sigW = fc.semnatura.width || 120;
             const sigH = fc.semnatura.height || 50;
             page.drawImage(sigImage, {
@@ -578,13 +619,14 @@
               width: sigW,
               height: sigH,
             });
-          } else {
-            console.warn('Signature response:', data);
-            alert('⚠️ Semnătură: ' + (data.message || 'răspuns necunoscut'));
+            console.log('Signature embedded in PDF successfully');
+          } catch (embedErr) {
+            console.error('Signature embed failed:', embedErr);
+            alert('⚠️ Semnătura nu a putut fi adăugată în PDF: ' + embedErr.message);
           }
-        } catch(sigErr) { console.warn('Semnătura nu a putut fi încărcată:', sigErr); alert('⚠️ Semnătura nu a putut fi adăugată: ' + sigErr.message); }
-      } else {
-        console.log('Semnătura sărită — sigUrl:', sigUrl, 'fc.semnatura:', !!fc.semnatura);
+        } else {
+          console.log('No signature data available for this record');
+        }
       }
 
       return doc;
@@ -592,9 +634,11 @@
 
     async function fillAndDownloadPDF() {
       try {
+        const idx = document.getElementById('recordSelect').value;
+        if (idx === '') { alert('Selectați o înregistrare!'); return; }
         const rec = getSelectedRecord();
-        if (!rec) { alert('Selectați o înregistrare!'); return; }
-        const doc = await buildFilledPDF(rec);
+        if (!rec) return;
+        const doc = await buildFilledPDF(rec, parseInt(idx));
         if (!doc) return;
         const bytes = await doc.save();
         downloadBlob(bytes, `F230_${rec['CNP']||'export'}.pdf`);
@@ -603,9 +647,11 @@
 
     async function previewFilledPDF() {
       try {
+        const idx = document.getElementById('recordSelect').value;
+        if (idx === '') { alert('Selectați o înregistrare!'); return; }
         const rec = getSelectedRecord();
-        if (!rec) { alert('Selectați o înregistrare!'); return; }
-        const doc = await buildFilledPDF(rec);
+        if (!rec) return;
+        const doc = await buildFilledPDF(rec, parseInt(idx));
         if (!doc) return;
         const bytes = await doc.save();
         renderPdfPreview(bytes);
@@ -619,7 +665,7 @@
       }
       const rec = {};
       allHeaders.forEach((h, j) => { rec[h] = allRows[i][j] || ''; });
-      const doc = await buildFilledPDF(rec);
+      const doc = await buildFilledPDF(rec, i);
       if (!doc) return;
       downloadBlob(await doc.save(), `F230_${rec['CNP']||i+1}.pdf`);
     }
@@ -631,7 +677,7 @@
       for (let i = 0; i < allRows.length; i++) {
         const rec = {};
         allHeaders.forEach((h,j) => { rec[h] = allRows[i][j] || ''; });
-        const doc = await buildFilledPDF(rec);
+        const doc = await buildFilledPDF(rec, i);
         if (doc) {
           downloadBlob(await doc.save(), `F230_${rec['CNP']||i+1}.pdf`);
           await new Promise(r => setTimeout(r, 400));
