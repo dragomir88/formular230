@@ -554,11 +554,18 @@
       draw('acord_x',        'X');
 
       // Signature image
-      const sigUrl = record['Semnătură (link)'];
-      if (sigUrl && fc.semnatura && !sigUrl.includes('error')) {
+      const sigKey = Object.keys(record).find(k => k.toLowerCase().includes('semn'));
+      const sigUrl = sigKey ? record[sigKey] : '';
+      console.log('Signature key:', sigKey, 'URL:', sigUrl);
+      if (sigUrl && fc.semnatura && sigUrl.startsWith('http')) {
         try {
           const resp = await fetch(APPS_SCRIPT_URL + '?action=getSignature&url=' + encodeURIComponent(sigUrl));
-          const data = await resp.json();
+          const text = await resp.text();
+          let data;
+          try { data = JSON.parse(text); } catch(e) {
+            console.error('Răspuns non-JSON:', text.substring(0, 200));
+            throw new Error('Răspuns invalid de la server');
+          }
           if (data.status === 'ok' && data.base64) {
             const sigBytes = Uint8Array.from(atob(data.base64), c => c.charCodeAt(0));
             const sigImage = await doc.embedPng(sigBytes);
@@ -570,8 +577,13 @@
               width: sigW,
               height: sigH,
             });
+          } else {
+            console.warn('Signature response:', data);
+            alert('⚠️ Semnătură: ' + (data.message || 'răspuns necunoscut'));
           }
         } catch(sigErr) { console.warn('Semnătura nu a putut fi încărcată:', sigErr); alert('⚠️ Semnătura nu a putut fi adăugată: ' + sigErr.message); }
+      } else {
+        console.log('Semnătura sărită — sigUrl:', sigUrl, 'fc.semnatura:', !!fc.semnatura);
       }
 
       return doc;
