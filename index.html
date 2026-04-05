@@ -83,16 +83,24 @@
           <p class="text-xs text-gray-500 mt-1">
             (Completat de organizație – nu este necesar să îl modificați)
           </p>
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="mt-3 grid grid-cols-1 gap-3">
             <div>
               <label class="form-label">Denumire entitate</label>
-              <input id="entityName" class="form-input bg-gray-50" type="text"
-                     value="" placeholder="ex. Asociația Carla" />
+              <input id="entityName" class="form-input bg-gray-100 text-gray-600 cursor-not-allowed" type="text"
+                     value="ASOCIATIA PENTRU INOVARE IN BOLI RARE INFLAMATORII, METABOLICE, GENETICE INNOROG"
+                     readonly />
             </div>
-            <div>
-              <label class="form-label">CIF / CUI entitate</label>
-              <input id="entityCIF" class="form-input bg-gray-50" type="text"
-                     value="" placeholder="ex. 12345678" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="form-label">CIF / CUI entitate</label>
+                <input id="entityCIF" class="form-input bg-gray-100 text-gray-600 cursor-not-allowed" type="text"
+                       value="43733722" readonly />
+              </div>
+              <div>
+                <label class="form-label">Cont bancar (IBAN)</label>
+                <input id="entityIBAN" class="form-input bg-gray-100 text-gray-600 cursor-not-allowed" type="text"
+                       value="RO48INGB0000999912010878" readonly />
+              </div>
             </div>
           </div>
         </div>
@@ -385,6 +393,7 @@
         city:          document.getElementById('city').value.trim(),
         entityName:    document.getElementById('entityName').value.trim(),
         entityCIF:     document.getElementById('entityCIF').value.trim(),
+        entityIBAN:    document.getElementById('entityIBAN').value.trim(),
         signature:     signaturePad.toDataURL('image/png')  // base64 PNG
       };
 

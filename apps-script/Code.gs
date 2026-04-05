@@ -25,7 +25,7 @@ const HEADERS = [
   'CNP', 'Email', 'Telefon',
   'Strada', 'Număr', 'Bloc', 'Scară', 'Etaj', 'Apartament',
   'Județ/Sector', 'Localitate',
-  'Entitate beneficiară', 'CIF entitate',
+  'Entitate beneficiară', 'CIF entitate', 'IBAN entitate',
   'Semnătură (link)'
 ];
 
@@ -72,6 +72,7 @@ function doPost(e) {
       payload.city          || '',
       payload.entityName    || '',
       payload.entityCIF     || '',
+      payload.entityIBAN    || '',
       signatureUrl
     ]);
 
