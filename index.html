@@ -105,6 +105,16 @@
           </div>
         </div>
 
+        <!-- Opțiune distribuire 2 ani -->
+        <div class="mt-3 px-1">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="optiune2ani" class="w-4 h-4 accent-blue-600" checked />
+            <span class="text-sm text-gray-700">
+              Opțiune privind distribuirea sumei pentru o perioadă de 2 ani
+            </span>
+          </label>
+        </div>
+
         <!-- SECTION: Date personale -->
         <p class="section-title">👤 Date personale</p>
 
@@ -394,6 +404,7 @@
         entityName:    document.getElementById('entityName').value.trim(),
         entityCIF:     document.getElementById('entityCIF').value.trim(),
         entityIBAN:    document.getElementById('entityIBAN').value.trim(),
+        optiune2ani:   document.getElementById('optiune2ani').checked,
         signature:     signaturePad.toDataURL('image/png')  // base64 PNG
       };
 

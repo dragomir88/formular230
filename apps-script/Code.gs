@@ -26,6 +26,7 @@ const HEADERS = [
   'Strada', 'Număr', 'Bloc', 'Scară', 'Etaj', 'Apartament',
   'Județ/Sector', 'Localitate',
   'Entitate beneficiară', 'CIF entitate', 'IBAN entitate',
+  'Opțiune 2 ani',
   'Semnătură (link)'
 ];
 
@@ -106,6 +107,7 @@ function doPost(e) {
       payload.entityName    || '',
       payload.entityCIF     || '',
       payload.entityIBAN    || '',
+      payload.optiune2ani ? 'Da' : 'Nu',
       signatureUrl
     ]);
 

@@ -546,7 +546,8 @@
 
       // Section II – entity (pre-filled)
       draw('sustinere_x',    'X');
-      draw('optiune_2ani_x', 'X');
+      const opt2ani = record['Opțiune 2 ani'];
+      if (!opt2ani || opt2ani === 'Da') draw('optiune_2ani_x', 'X');
       draw('entity_cif',     ENTITY.cif);
       draw('entity_name',    ENTITY.name);
       draw('entity_iban',    ENTITY.iban);
