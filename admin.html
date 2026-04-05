@@ -431,7 +431,9 @@
     // ═══ COORDINATE EDITOR ═══════════════════════════════════════════════
     function loadCoordinates() {
       const s = localStorage.getItem('f230_coords');
-      fieldCoords = s ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT_COORDS));
+      const saved = s ? JSON.parse(s) : {};
+      // Always merge with defaults so new fields (e.g. semnatura) are never missing
+      fieldCoords = { ...JSON.parse(JSON.stringify(DEFAULT_COORDS)), ...saved };
     }
 
     function readCoordsFromUI() {
@@ -569,7 +571,7 @@
               height: sigH,
             });
           }
-        } catch(sigErr) { console.warn('Semnătura nu a putut fi încărcată:', sigErr); }
+        } catch(sigErr) { console.warn('Semnătura nu a putut fi încărcată:', sigErr); alert('⚠️ Semnătura nu a putut fi adăugată: ' + sigErr.message); }
       }
 
       return doc;
